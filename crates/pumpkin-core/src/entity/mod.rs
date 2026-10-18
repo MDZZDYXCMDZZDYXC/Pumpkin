@@ -381,6 +381,12 @@ pub trait EntityBase: Send + Sync + std::any::Any {
         false
     }
 
+    /// Moves the entity itself in every medium, land included, and says whether it did. Squid do,
+    /// because vanilla `Squid.travel` only ever applies the velocity its own tick picked.
+    fn custom_travel(&self) -> bool {
+        false
+    }
+
     fn java_spawn_metadata(&self, version: JavaMinecraftVersion) -> Option<Box<[u8]>> {
         if version < JavaMinecraftVersion::V_1_9 {
             let entity = self.get_entity();

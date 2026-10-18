@@ -163,13 +163,42 @@ impl MobEntity {
         }
     }
 
+    /// Vanilla gives each mob the navigation its vanilla counterpart creates in
+    /// `createNavigation`. Aquatic mobs must not fall back to ground navigation, which would
+    /// have them path over land and bob at the surface instead of swimming.
+    fn navigation_for_entity_type(entity_type: &EntityType) -> Navigator {
+        const WATER_BOUND_IDS: [u16; 6] = [
+            EntityType::COD.id,
+            EntityType::SALMON.id,
+            EntityType::TROPICAL_FISH.id,
+            EntityType::PUFFERFISH.id,
+            EntityType::SQUID.id,
+            EntityType::GLOW_SQUID.id,
+        ];
+        const AMPHIBIOUS_IDS: [u16; 2] = [EntityType::TADPOLE.id, EntityType::AXOLOTL.id];
+
+        if entity_type.id == EntityType::DOLPHIN.id {
+            // Vanilla `Dolphin`: water-bound, but allowed to breach.
+            Navigator::water_bound(true)
+        } else if WATER_BOUND_IDS.contains(&entity_type.id) {
+            Navigator::water_bound(false)
+        } else if AMPHIBIOUS_IDS.contains(&entity_type.id) {
+            // Vanilla `AmphibiousPathNavigation`: swims in water, still walks on land.
+            Navigator::amphibious(false)
+        } else {
+            Navigator::default()
+        }
+    }
+
     #[must_use]
     pub fn new(entity: Entity) -> Self {
+        let navigator = Self::navigation_for_entity_type(entity.entity_type);
+
         Self {
             living_entity: LivingEntity::new(entity),
             goals_selector: std::sync::Mutex::new(GoalSelector::default()),
             target_selector: std::sync::Mutex::new(GoalSelector::default()),
-            navigator: std::sync::Mutex::new(Navigator::default()),
+            navigator: std::sync::Mutex::new(navigator),
             target: std::sync::Mutex::new(None),
             look_control: std::sync::Mutex::new(LookControl::default()),
             sensing: std::sync::Mutex::new(Sensing::default()),
@@ -977,6 +1006,10 @@ pub trait Mob: EntityBase + Send + Sync {
         false
     }
 
+    fn mob_custom_travel(&self, _caller: &dyn EntityBase) -> bool {
+        false
+    }
+
     /// Vanilla `isPushedByFluid`: whether water currents carry the mob along.
     fn mob_is_pushed_by_fluids(&self) -> bool {
         true
@@ -1584,6 +1617,10 @@ impl<T: Mob + Send + 'static> EntityBase for T {
         self.mob_travel_in_water(self)
     }
 
+    fn custom_travel(&self) -> bool {
+        self.mob_custom_travel(self)
+    }
+
     fn is_pushed_by_fluids(&self) -> bool {
         self.mob_is_pushed_by_fluids()
     }
@@ -1655,4 +1692,44 @@ pub trait PathAwareEntity: Mob + Send + Sync {
 
 pub trait RangedAttackMob: Mob + Send + Sync {
     fn perform_ranged_attack(&self, target: &Arc<dyn EntityBase>, power: f32);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use pumpkin_data::entity::EntityType;
+
+    #[test]
+    fn aquatic_mobs_do_not_use_ground_navigation() {
+        for entity_type in [
+            &EntityType::COD,
+            &EntityType::SALMON,
+            &EntityType::TROPICAL_FISH,
+            &EntityType::PUFFERFISH,
+            &EntityType::SQUID,
+            &EntityType::GLOW_SQUID,
+            &EntityType::DOLPHIN,
+        ] {
+            let navigator = MobEntity::navigation_for_entity_type(entity_type);
+            assert!(
+                !navigator.can_navigate_ground(),
+                "{} should use water-bound navigation",
+                entity_type.resource_name
+            );
+        }
+    }
+
+    /// Tadpoles and axolotls use vanilla `AmphibiousPathNavigation`: they swim, but unlike fish
+    /// they can still walk out onto land.
+    #[test]
+    fn amphibious_mobs_can_still_walk_on_land() {
+        for entity_type in [&EntityType::TADPOLE, &EntityType::AXOLOTL] {
+            let navigator = MobEntity::navigation_for_entity_type(entity_type);
+            assert!(
+                navigator.can_navigate_ground(),
+                "{} should keep amphibious navigation",
+                entity_type.resource_name
+            );
+        }
+    }
 }

@@ -1439,6 +1439,8 @@ impl LivingEntity {
 
         if !effective_ai {
             // No travel.
+        } else if caller.custom_travel() {
+            // The entity moved itself in every medium.
         } else if touching_water && caller.travel_in_water() {
             // The entity swam on its own.
         } else if (touching_water || self.entity.touching_lava.load(SeqCst))
