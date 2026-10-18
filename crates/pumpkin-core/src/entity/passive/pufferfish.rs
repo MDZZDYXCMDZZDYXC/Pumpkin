@@ -17,10 +17,7 @@ use pumpkin_util::math::boundingbox::{BoundingBox, EntityDimensions};
 
 use crate::entity::{
     Entity, EntityBase,
-    ai::{
-        goal::pufferfish_puff::PufferfishPuffGoal,
-        target_predicate::TargetPredicate,
-    },
+    ai::{goal::pufferfish_puff::PufferfishPuffGoal, target_predicate::TargetPredicate},
     custom_sound::CustomSound,
     mob::{Mob, MobEntity},
     passive::fish::{self, FishAir},
